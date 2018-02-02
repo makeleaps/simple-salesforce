@@ -2,6 +2,9 @@
 
 import re
 from datetime import datetime
+
+from collections import OrderedDict
+
 try:
     # Python 2.6
     import unittest2 as unittest
@@ -13,26 +16,20 @@ import responses
 try:
     # Python 2.6/2.7
     import httplib as http
-    from mock import Mock, patch
+    from mock import patch
 except ImportError:
     # Python 3
     import http.client as http
-    from unittest.mock import Mock, patch
+    from unittest.mock import patch
 
 import requests
 
 from simple_salesforce import tests
 from simple_salesforce.api import (
-    _exception_handler,
     Salesforce,
-    SalesforceMoreThanOneRecord,
-    SalesforceMalformedRequest,
-    SalesforceExpiredSession,
-    SalesforceRefusedRequest,
-    SalesforceResourceNotFound,
-    SalesforceGeneralError,
     SFType
 )
+
 
 
 def _create_sf_type(
@@ -567,71 +564,130 @@ class TestSalesforce(unittest.TestCase):
             self.assertIn('ignoring proxies', mock_log.call_args[0][0])
             self.assertIs(tests.PROXIES, client.session.proxies)
 
+    @responses.activate
+    def test_query(self):
+        """Test querying generates the expected request"""
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/query/\?q=SELECT\+ID\+FROM\+Account$'),
+            body='{}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session)
 
-class TestExceptionHandler(unittest.TestCase):
-    """Test the exception router"""
-    def setUp(self):
-        """Setup the exception router tests"""
-        self.mockresult = Mock()
-        self.mockresult.url = 'http://www.example.com/'
-        self.mockresult.json.return_value = 'Example Content'
+        result = client.query('SELECT ID FROM Account')
+        self.assertEqual(result, {})
 
-    def test_multiple_records_returned(self):
-        """Test multiple records returned (a 300 code)"""
-        self.mockresult.status_code = 300
-        with self.assertRaises(SalesforceMoreThanOneRecord) as cm:
-            _exception_handler(self.mockresult)
+    @responses.activate
+    def test_query_include_deleted(self):
+        """Test querying for all records generates the expected request"""
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/queryAll/\?q=SELECT\+ID\+FROM\+Account$'),
+            body='{}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session)
 
-        self.assertEqual(str(cm.exception), (
-            'More than one record for '
-            'http://www.example.com/. Response content: Example Content'))
+        result = client.query('SELECT ID FROM Account', include_deleted=True)
+        self.assertEqual(result, {})
 
-    def test_malformed_request(self):
-        """Test a malformed request (400 code)"""
-        self.mockresult.status_code = 400
-        with self.assertRaises(SalesforceMalformedRequest) as cm:
-            _exception_handler(self.mockresult)
+    @responses.activate
+    def test_query_more_id_not_url(self):
+        """
+        Test fetching additional results by ID generates the expected request
+        """
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/query/next-records-id$'),
+            body='{}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session)
 
-        self.assertEqual(str(cm.exception), (
-            'Malformed request '
-            'http://www.example.com/. Response content: Example Content'))
+        result = client.query_more('next-records-id', identifier_is_url=False)
+        self.assertEqual(result, {})
 
-    def test_expired_session(self):
-        """Test an expired session (401 code)"""
-        self.mockresult.status_code = 401
-        with self.assertRaises(SalesforceExpiredSession) as cm:
-            _exception_handler(self.mockresult)
+    @responses.activate
+    def test_query_more_id_not_url_include_deleted(self):
+        """
+        Test fetching additional results by ID generates the expected request
+        """
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/queryAll/next-records-id$'),
+            body='{}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session)
 
-        self.assertEqual(str(cm.exception), (
-            'Expired session for '
-            'http://www.example.com/. Response content: Example Content'))
+        result = client.query_more(
+            'next-records-id', identifier_is_url=False, include_deleted=True)
+        self.assertEqual(result, {})
 
-    def test_request_refused(self):
-        """Test a refused request (403 code)"""
-        self.mockresult.status_code = 403
-        with self.assertRaises(SalesforceRefusedRequest) as cm:
-            _exception_handler(self.mockresult)
+    @responses.activate
+    def test_query_all(self):
+        """
+        Test that we query and fetch additional result sets automatically.
+        """
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/query/\?q=SELECT\+ID\+FROM\+Account$'),
+            body='{"records": [{"ID": "1"}], "done": false, "nextRecordsUrl": '
+                 '"https://example.com/query/next-records-id"}',
+            status=http.OK)
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/query/next-records-id$'),
+            body='{"records": [{"ID": "2"}], "done": true}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session)
 
-        self.assertEqual(str(cm.exception), (
-            'Request refused for '
-            'http://www.example.com/. Response content: Example Content'))
+        result = client.query_all('SELECT ID FROM Account')
+        self.assertEqual(
+            result,
+            OrderedDict([(u'records', [
+                OrderedDict([(u'ID', u'1')]),
+                OrderedDict([(u'ID', u'2')])
+            ]), (u'done', True)]))
 
-    def test_resource_not_found(self):
-        """Test resource not found (404 code)"""
-        self.mockresult.status_code = 404
-        with self.assertRaises(SalesforceResourceNotFound) as cm:
-            _exception_handler(self.mockresult, 'SpecialContacts')
+    @responses.activate
+    def test_query_all_include_deleted(self):
+        """
+        Test that we query all and fetch additional result sets automatically.
+        """
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/queryAll/\?q=SELECT\+ID\+FROM\+Account$'),
+            body='{"records": [{"ID": "1"}], "done": false, "nextRecordsUrl": '
+                 '"https://example.com/queryAll/next-records-id"}',
+            status=http.OK)
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/queryAll/next-records-id$'),
+            body='{"records": [{"ID": "2"}], "done": true}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session)
 
-        self.assertEqual(str(cm.exception), (
-            'Resource SpecialContacts Not'
-            ' Found. Response content: Example Content'))
-
-    def test_generic_error_code(self):
-        """Test an error code that is otherwise not caught"""
-        self.mockresult.status_code = 500
-        with self.assertRaises(SalesforceGeneralError) as cm:
-            _exception_handler(self.mockresult)
-
-        self.assertEqual(str(cm.exception), (
-            'Error Code 500. Response content'
-            ': Example Content'))
+        result = client.query_all('SELECT ID FROM Account',
+                                  include_deleted=True)
+        self.assertEqual(
+            result,
+            OrderedDict([(u'records', [
+                OrderedDict([(u'ID', u'1')]),
+                OrderedDict([(u'ID', u'2')])
+            ]), (u'done', True)]))
