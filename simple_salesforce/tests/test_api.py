@@ -620,7 +620,7 @@ class TestSalesforce(unittest.TestCase):
                               '{"ID": "5", "Price": -1.1234567890123456},'
                               '{"ID": "6", "Price": -12345678901234567}],'
                  '"done": false, "nextRecordsUrl": '
-                 '"https://example.com/query/next-records-id", "totalSize": 1}',
+                 '"https://example.com/query/next-records-id", "totalSize": 6}',
             status=http.OK)
         session = requests.Session()
         client = Salesforce(session_id=tests.SESSION_ID,
@@ -666,7 +666,7 @@ class TestSalesforce(unittest.TestCase):
                               '{"ID": "5", "Price": -1.1234567890123456},'
                               '{"ID": "6", "Price": -12345678901234567}],'
                  '"done": false, "nextRecordsUrl": '
-                 '"https://example.com/query/next-records-id", "totalSize": 1}',
+                 '"https://example.com/query/next-records-id", "totalSize": 6}',
             status=http.OK)
         session = requests.Session()
         client = Salesforce(session_id=tests.SESSION_ID,
