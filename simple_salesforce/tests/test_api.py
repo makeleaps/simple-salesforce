@@ -613,7 +613,12 @@ class TestSalesforce(unittest.TestCase):
             responses.GET,
             re.compile(r'^https://.*/query/\?q=SELECT\+ID%2C\+Price\+'
                        r'FROM\+Account$'),
-            body='{"records": [{"ID": "1", "Price": 13.40}], '
+            body='{"records": [{"ID": "1", "Price": 13.40},'
+                              '{"ID": "2", "Price": 1.12345678901234567},'
+                              '{"ID": "3", "Price": 123456789012345678},'
+                              '{"ID": "4", "Price": 0},'
+                              '{"ID": "5", "Price": -1.1234567890123456},'
+                              '{"ID": "6", "Price": -12345678901234567}],'
                  '"done": false, "nextRecordsUrl": '
                  '"https://example.com/query/next-records-id", "totalSize": 1}',
             status=http.OK)
@@ -623,11 +628,25 @@ class TestSalesforce(unittest.TestCase):
                             session=session)
 
         result = client.query('SELECT ID, Price FROM Account')
+        print(result)
         self.assertEqual(
             result,
             OrderedDict([
                 ('records', [
-                    OrderedDict([('ID', '1'), ('Price', float(13.4))]),
+                    OrderedDict([('ID', '1'), ('Price', 13.4)]),
+                    OrderedDict([
+                        ('ID', '2'), ('Price', 1.12345678901234567)
+                    ]),
+                    OrderedDict([
+                        ('ID', '3'), ('Price', 123456789012345678)
+                    ]),
+                    OrderedDict([('ID', '4'), ('Price', 0)]),
+                    OrderedDict([
+                        ('ID', '5'), ('Price', -1.1234567890123456),
+                    ]),
+                    OrderedDict([
+                        ('ID', '6'), ('Price', -12345678901234567),
+                    ]),
                 ]),
                 ('done', False),
                 ('nextRecordsUrl', "https://example.com/query/next-records-id"),
@@ -641,7 +660,12 @@ class TestSalesforce(unittest.TestCase):
             responses.GET,
             re.compile(r'^https://.*/query/\?q=SELECT\+ID%2C\+Price\+'
                        r'FROM\+Account$'),
-            body='{"records": [{"ID": "1", "Price": 13.40}], '
+            body='{"records": [{"ID": "1", "Price": 13.40},'
+                              '{"ID": "2", "Price": 1.12345678901234567},'
+                              '{"ID": "3", "Price": 123456789012345678},'
+                              '{"ID": "4", "Price": 0},'
+                              '{"ID": "5", "Price": -1.1234567890123456},'
+                              '{"ID": "6", "Price": -12345678901234567}],'
                  '"done": false, "nextRecordsUrl": '
                  '"https://example.com/query/next-records-id", "totalSize": 1}',
             status=http.OK)
@@ -659,6 +683,26 @@ class TestSalesforce(unittest.TestCase):
                     OrderedDict([
                         ('ID', '1'),
                         ('Price', decimal.Decimal('13.40')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '2'),
+                        ('Price', decimal.Decimal('1.12345678901234567')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '3'),
+                        ('Price', decimal.Decimal('123456789012345678')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '4'),
+                        ('Price', decimal.Decimal('0')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '5'),
+                        ('Price', decimal.Decimal('-1.1234567890123456')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '6'),
+                        ('Price', decimal.Decimal('-12345678901234567')),
                     ]),
                 ]),
                 ('done', False),
