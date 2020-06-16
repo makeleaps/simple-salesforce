@@ -649,7 +649,7 @@ class TestSalesforce(unittest.TestCase):
                 ]),
                 ('done', False),
                 ('nextRecordsUrl', "https://example.com/query/next-records-id"),
-                ('totalSize', 1),
+                ('totalSize', 6),
             ]))
 
     @responses.activate
@@ -706,7 +706,7 @@ class TestSalesforce(unittest.TestCase):
                 ]),
                 ('done', False),
                 ("nextRecordsUrl", "https://example.com/query/next-records-id"),
-                ('totalSize', 1),
+                ('totalSize', 6),
             ]))
 
     @responses.activate
