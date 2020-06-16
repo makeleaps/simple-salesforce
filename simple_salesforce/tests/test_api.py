@@ -628,7 +628,6 @@ class TestSalesforce(unittest.TestCase):
                             session=session)
 
         result = client.query('SELECT ID, Price FROM Account')
-        print(result)
         self.assertEqual(
             result,
             OrderedDict([
