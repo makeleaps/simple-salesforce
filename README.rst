@@ -9,14 +9,14 @@ Simple Salesforce
    :target: http://simple-salesforce.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
-Simple Salesforce is a basic Salesforce.com REST API client built for Python 2.6, 2.7, 3.3 and 3.4. The goal is to provide a very low-level interface to the REST Resource and APEX API, returning a dictionary of the API JSON response.
+Simple Salesforce is a basic Salesforce.com REST API client built for Python 3.3, 3.4, 3.5, and 3.6. The goal is to provide a very low-level interface to the REST Resource and APEX API, returning a dictionary of the API JSON response.
 
 You can find out more regarding the format of the results in the `Official Salesforce.com REST API Documentation`_
 
 .. _Official Salesforce.com REST API Documentation: http://www.salesforce.com/us/developer/docs/api_rest/index.htm
 
-Example
--------
+Examples
+--------
 There are two ways to gain access to Salesforce
 
 The first is to simply pass the domain of your Salesforce instance and an access token straight to ``Salesforce()``
@@ -35,7 +35,7 @@ If you have the full URL of your instance (perhaps including the schema, as is i
     from simple_salesforce import Salesforce
     sf = Salesforce(instance_url='https://na1.salesforce.com', session_id='')
 
-There are also two means of authentication, one that uses username, password and security token and the other that uses IP filtering, username, password  and organizationId
+There are also three means of authentication, one that uses username, password and security token; one that uses IP filtering, username, password  and organizationId; and the other that uses a private key to sign a JWT.
 
 To login using the security token method, simply include the Salesforce method and pass in your Salesforce username, password and token (this is usually provided when you change your password):
 
@@ -51,23 +51,30 @@ To login using IP-whitelist Organization ID method, simply use your Salesforce u
     from simple_salesforce import Salesforce
     sf = Salesforce(password='password', username='myemail@example.com', organizationId='OrgId')
 
-If you'd like to enter a sandbox, simply add ``sandbox=True`` to your ``Salesforce()`` call.
+To login using the JWT method, use your Salesforce username, consumer key from your app, and private key:
+
+.. code-block:: python
+
+    from simple_salesforce import Salesforce
+    sf = Salesforce(username='myemail@example.com', consumer_key='XYZ', privatekey_file='filename.key')
+
+If you'd like to enter a sandbox, simply add ``domain='test'`` to your ``Salesforce()`` call.
 
 For example:
 
 .. code-block:: python
 
     from simple_salesforce import Salesforce
-    sf = Salesforce(username='myemail@example.com.sandbox', password='password', security_token='token', sandbox=True)
+    sf = Salesforce(username='myemail@example.com.sandbox', password='password', security_token='token', domain='test')
 
-Note that specifying if you want to use a sandbox is only necessary if you are using the built-in username/password/security token authentication and is used exclusively during the authentication step.
+Note that specifying if you want to use a domain is only necessary if you are using the built-in username/password/security token authentication and is used exclusively during the authentication step.
 
 If you'd like to keep track where your API calls are coming from, simply add ``client_id='My App'`` to your ``Salesforce()`` call.
 
 .. code-block:: python
 
     from simple_salesforce import Salesforce
-    sf = Salesforce(username='myemail@example.com.sandbox', password='password', security_token='token', sandbox=True, client_id='My App')
+    sf = Salesforce(username='myemail@example.com.sandbox', password='password', security_token='token', client_id='My App', domain='test')
 
 If you view the API calls in your Salesforce instance by Client Id it will be prefixed with ``RestForce/``, for example ``RestForce/My App``.
 
@@ -123,7 +130,7 @@ To delete the contact:
 
     sf.Contact.delete('003e0000003GuNXAA0')
 
-To retrieve a list of deleted records between ``2013-10-20`` to ``2013-10-29`` (datetimes are required to be in UTC):
+To retrieve a list of Contact records deleted over the past 10 days (datetimes are required to be in UTC):
 
 .. code-block:: python
 
@@ -132,7 +139,7 @@ To retrieve a list of deleted records between ``2013-10-20`` to ``2013-10-29`` (
     end = datetime.datetime.now(pytz.UTC)  # we need to use UTC as salesforce API requires this!
     sf.Contact.deleted(end - datetime.timedelta(days=10), end)
 
-To retrieve a list of updated records between ``2014-03-20`` to ``2014-03-22`` (datetimes are required to be in UTC):
+To retrieve a list of Contact records updated over the past 10 days (datetimes are required to be in UTC):
 
 .. code-block:: python
 
@@ -142,8 +149,6 @@ To retrieve a list of updated records between ``2014-03-20`` to ``2014-03-22`` (
     sf.Contact.updated(end - datetime.timedelta(days=10), end)
 
 Note that Update, Delete and Upsert actions return the associated `Salesforce HTTP Status Code`_
-
-.. _Salesforce HTTP Status Code: http://www.salesforce.com/us/developer/docs/api_rest/Content/errorcodes.htm
 
 Use the same format to create any record, including 'Account', 'Opportunity', and 'Lead'.
 Make sure to have all the required fields for any entry. The `Salesforce API`_ has all objects found under 'Reference -> Standard Objects' and the required fields can be found there.
@@ -174,6 +179,14 @@ As a convenience, to retrieve all of the results in a single local method call u
 .. code-block:: python
 
     sf.query_all("SELECT Id, Email FROM Contact WHERE LastName = 'Jones'")
+
+While ``query_all`` materializes the whole result into a Python list, ``query_all_iter`` returns an iterator, which allows you to lazily process each element separately
+
+.. code-block:: python
+
+    data = sf.query_all_iter("SELECT Id, Email FROM Contact WHERE LastName = 'Jones'")
+    for row in data:
+      process(row)
 
 SOSL queries are done via:
 
@@ -233,31 +246,40 @@ To retrieve a list of top level description of instance metadata, user:
 Using Bulk
 ----------
 
-You can use this library to access Bulk API functions.
+You can use this library to access Bulk API functions. The data element can be a list of records of any size and by default batch sizes are 10,000 records and run in parrallel concurrency mode. To set the batch size for insert, upsert, delete, hard_delete, and update use the batch_size argument. To set the concurrency mode for the salesforce job the use_serial argument can be set to use_serial=True.
 
 Create new records:
 
 .. code-block:: python
 
-    data = [{'LastName':'Smith','Email':'example@example.com'}, {'LastName':'Jones','Email':'test@test.com'}]
+    data = [
+          {'LastName':'Smith','Email':'example@example.com'},
+          {'LastName':'Jones','Email':'test@test.com'}
+        ]
 
-    sf.bulk.Contact.insert(data)
+    sf.bulk.Contact.insert(data,batch_size=10000,use_serial=True)
 
 Update existing records:
 
 .. code-block:: python
 
-    data = [{'Id': '0000000000AAAAA', 'Email': 'examplenew@example.com'}, {'Id': '0000000000BBBBB', 'Email': 'testnew@test.com'}]
+    data = [
+          {'Id': '0000000000AAAAA', 'Email': 'examplenew@example.com'},
+          {'Id': '0000000000BBBBB', 'Email': 'testnew@test.com'}
+        ]
 
-    sf.bulk.Contact.update(data)
+    sf.bulk.Contact.update(data,batch_size=10000,use_serial=True)
 
 Upsert records:
 
 .. code-block:: python
 
-    data = [{'Id': '0000000000AAAAA', 'Email': 'examplenew2@example.com'}, {'Id': '', 'Email': 'foo@foo.com'}]
+    data = [
+          {'Id': '0000000000AAAAA', 'Email': 'examplenew2@example.com'},
+          {'Email': 'foo@foo.com'}
+        ]
 
-    sf.bulk.Contact.upsert(data, 'Id')
+    sf.bulk.Contact.upsert(data,batch_size=10000,use_serial=True, 'Id')
 
 Query records:
 
@@ -273,7 +295,7 @@ Delete records (soft deletion):
 
     data = [{'Id': '0000000000AAAAA'}]
 
-    sf.bulk.Contact.delete(data)
+    sf.bulk.Contact.delete(data,batch_size=10000,use_serial=True)
 
 Hard deletion:
 
@@ -281,7 +303,7 @@ Hard deletion:
 
     data = [{'Id': '0000000000BBBBB'}]
 
-    sf.bulk.Contact.hard_delete(data)
+    sf.bulk.Contact.hard_delete(data,batch_size=10000,use_serial=True)
 
 
 Using Apex
@@ -303,14 +325,14 @@ the body content encoded with ``json.dumps``
 
 You can read more about Apex on the `Force.com Apex Code Developer's Guide`_
 
-.. _Force.com Apex Code Developer's Guide: http://www.salesforce.com/us/developer/docs/apexcode
+.. _Force.com Apex Code Developer's Guide: https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_dev_guide.htm
 
 Additional Features
 -------------------
 
 There are a few helper classes that are used internally and available to you.
 
-Included in them are ``SalesforceLogin``, which takes in a username, password, security token, optional boolean sandbox indicator and optional version and returns a tuple of ``(session_id, sf_instance)`` where `session_id` is the session ID to use for authentication to Salesforce and ``sf_instance`` is the domain of the instance of Salesforce to use for the session.
+Included in them are ``SalesforceLogin``, which takes in a username, password, security token, optional version and optional domain and returns a tuple of ``(session_id, sf_instance)`` where `session_id` is the session ID to use for authentication to Salesforce and ``sf_instance`` is the domain of the instance of Salesforce to use for the session.
 
 For example, to use SalesforceLogin for a sandbox account you'd use:
 
@@ -321,9 +343,9 @@ For example, to use SalesforceLogin for a sandbox account you'd use:
         username='myemail@example.com.sandbox',
         password='password',
         security_token='token',
-        sandbox=True)
+        domain='test')
 
-Simply leave off the final ``True`` if you do not wish to use a sandbox.
+Simply leave off the final domain if you do not wish to use a sandbox.
 
 Also exposed is the ``SFType`` class, which is used internally by the ``__getattr__()`` method in the ``Salesforce()`` class and represents a specific SObject type. ``SFType`` requires ``object_name`` (i.e. ``Contact``), ``session_id`` (an authentication ID), ``sf_instance`` (hostname of your Salesforce instance), and an optional ``sf_version``
 
@@ -361,4 +383,4 @@ The latest build status can be found at `Travis CI`_
 .. _community contributors: https://github.com/simple-salesforce/simple-salesforce/graphs/contributors
 .. _RestForce: http://pypi.python.org/pypi/RestForce/
 .. _GitHub Repo: https://github.com/simple-salesforce/simple-salesforce
-.. _Travis CI: https://travis-ci.org/simple-salesforce/simple-salesforce
+.. _Travis CI: https://travis-ci.com/simple-salesforce/simple-salesforce

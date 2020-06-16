@@ -1,3 +1,34 @@
+v1.1.0
+=====
+
+Features
+--------
+- [316] Added support for bulk multi-batch processing records
+- [349] Added support for bulk concurrency mode
+
+v1.0.0
+======
+
+Other
+-----
+
+- [362] Increased default Salesforce API Version to 42.0
+- [360] Remove depreciated interfaces
+- [358] Removed support for Python 2.6, 2.7, 3.3, and 3.4
+- [359] Make the minimum version of requests v 2.22.0, allowing us to
+  remove requests[security]
+- Changed "Beta" classifier to "Production/Stable"
+
+
+v0.75
+=====
+
+Features
+--------
+- [305] Support for JWT Bearer Token workflow
+- [354] Ability to load large results lazily (query_all_iter)
+
+
 v0.72
 =====
 
