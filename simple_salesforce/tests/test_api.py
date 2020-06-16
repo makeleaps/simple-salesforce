@@ -1,5 +1,5 @@
 """Tests for api.py"""
-
+import decimal
 import http.client as http
 import re
 import unittest
@@ -604,7 +604,66 @@ class TestSalesforce(unittest.TestCase):
                             session=session)
 
         result = client.query('SELECT ID FROM Account')
-        self.assertEqual(result, {})
+        self.assertEqual(result, {})\
+
+    @responses.activate
+    def test_query_parse_float(self):
+        """Test parsing of floating point numbers as floats"""
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/query/\?q=SELECT\+ID%2C\+Price\+'
+                       r'FROM\+Account$'),
+            body='{"records": [{"ID": "1", "Price": 13.40}], '
+                 '"done": false, "nextRecordsUrl": '
+                 '"https://example.com/query/next-records-id", "totalSize": 1}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session)
+
+        result = client.query('SELECT ID, Price FROM Account')
+        self.assertEqual(
+            result,
+            OrderedDict([
+                ('records', [
+                    OrderedDict([('ID', '1'), ('Price', float(13.4))]),
+                ]),
+                ('done', False),
+                ('nextRecordsUrl', "https://example.com/query/next-records-id"),
+                ('totalSize', 1),
+            ]))
+
+    @responses.activate
+    def test_query_parse_decimals(self):
+        """Test parsing of floating point numbers as decimals"""
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/query/\?q=SELECT\+ID%2C\+Price\+'
+                       r'FROM\+Account$'),
+            body='{"records": [{"ID": "1", "Price": 13.40}], '
+                 '"done": false, "nextRecordsUrl": '
+                 '"https://example.com/query/next-records-id", "totalSize": 1}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session)
+
+        result = client.query('SELECT ID, Price FROM Account')
+        self.assertEqual(
+            result,
+            OrderedDict([
+                ('records', [
+                    OrderedDict([
+                        ('ID', '1'),
+                        ('Price', decimal.Decimal('13.40')),
+                    ]),
+                ]),
+                ('done', False),
+                ("nextRecordsUrl", "https://example.com/query/next-records-id"),
+                ('totalSize', 1),
+            ]))
 
     @responses.activate
     def test_query_include_deleted(self):
