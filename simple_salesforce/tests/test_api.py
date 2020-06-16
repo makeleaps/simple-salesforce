@@ -648,7 +648,8 @@ class TestSalesforce(unittest.TestCase):
         session = requests.Session()
         client = Salesforce(session_id=tests.SESSION_ID,
                             instance_url=tests.SERVER_URL,
-                            session=session)
+                            session=session,
+                            parse_fixed_place=True)
 
         result = client.query('SELECT ID, Price FROM Account')
         self.assertEqual(

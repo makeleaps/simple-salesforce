@@ -2,6 +2,8 @@
 
 
 # has to be defined prior to login import
+import decimal
+
 DEFAULT_API_VERSION = '42.0'
 
 
@@ -33,6 +35,8 @@ class Salesforce:
     An instance of Salesforce is a handy way to wrap a Salesforce session
     for easy use of the Salesforce REST API.
     """
+    # Default parsing options
+    parse_fixed_place = False  # Disabled by default for backwards compatibility
 
     # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
     def __init__(
@@ -51,6 +55,7 @@ class Salesforce:
         domain=None,
         consumer_key=None,
         privatekey_file=None,
+        parse_fixed_place=False,
     ):
         """Initialize the instance with the given parameters.
 
@@ -91,10 +96,17 @@ class Salesforce:
                      enables the use of requests Session features not otherwise
                      exposed by simple_salesforce.
 
+        Parsing Kwargs:
+        * parse_fixed_place -- parse query and query_more floating point numbers
+                               as decimal.Decimal (True) or float (False).
+                               Default of False for backwards compatibility.
         """
 
         if domain is None:
             domain = 'login'
+
+        # Configure result parsing options
+        self.parse_fixed_place = parse_fixed_place
 
         # Determine if the user passed in the optional version and/or
         # domain kwargs
@@ -356,7 +368,7 @@ class Salesforce:
         result = self._call_salesforce('GET', url, name='query',
                                        params=params, **kwargs)
 
-        return result.json(object_pairs_hook=OrderedDict)
+        return self._parse_query_result(result)
 
     def query_more(
             self, next_records_identifier, identifier_is_url=False,
@@ -390,7 +402,7 @@ class Salesforce:
                              next_record_id=next_records_identifier)
         result = self._call_salesforce('GET', url, name='query_more', **kwargs)
 
-        return result.json(object_pairs_hook=OrderedDict)
+        return self._parse_query_result(result)
 
     def query_all_iter(self, query, include_deleted=False, **kwargs):
         """This is a lazy alternative to `query_all` - it does not construct
@@ -494,6 +506,18 @@ class Salesforce:
             self.api_usage = self.parse_api_usage(sforce_limit_info)
 
         return result
+
+    def _parse_query_result(self, result):
+        """Utility method for parsing API JSON results.
+
+        Returns the deserialized results.
+        """
+        if self.parse_fixed_place:
+            return result.json(
+                object_pairs_hook=OrderedDict,
+                parse_float=decimal.Decimal,
+            )
+        return result.json(object_pairs_hook=OrderedDict)
 
     @staticmethod
     def parse_api_usage(sforce_limit_info):
