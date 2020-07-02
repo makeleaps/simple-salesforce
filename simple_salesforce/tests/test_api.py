@@ -604,7 +604,7 @@ class TestSalesforce(unittest.TestCase):
                             session=session)
 
         result = client.query('SELECT ID FROM Account')
-        self.assertEqual(result, {})\
+        self.assertEqual(result, {})
 
     @responses.activate
     def test_query_parse_float(self):

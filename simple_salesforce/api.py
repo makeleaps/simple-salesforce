@@ -2,11 +2,10 @@
 
 
 # has to be defined prior to login import
-import decimal
-
 DEFAULT_API_VERSION = '42.0'
 
 
+import decimal
 import json
 import logging
 import re
