@@ -1,5 +1,5 @@
 """Tests for api.py"""
-
+import decimal
 import http.client as http
 import re
 import unittest
@@ -605,6 +605,109 @@ class TestSalesforce(unittest.TestCase):
 
         result = client.query('SELECT ID FROM Account')
         self.assertEqual(result, {})
+
+    @responses.activate
+    def test_query_parse_float(self):
+        """Test parsing of floating point numbers as floats"""
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/query/\?q=SELECT\+ID%2C\+Price\+'
+                       r'FROM\+Account$'),
+            body='{"records": [{"ID": "1", "Price": 13.40},'
+                              '{"ID": "2", "Price": 1.12345678901234567},'
+                              '{"ID": "3", "Price": 123456789012345678},'
+                              '{"ID": "4", "Price": 0},'
+                              '{"ID": "5", "Price": -1.1234567890123456},'
+                              '{"ID": "6", "Price": -12345678901234567}],'
+                 '"done": false, "nextRecordsUrl": '
+                 '"https://example.com/query/next-records-id", "totalSize": 6}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session)
+
+        result = client.query('SELECT ID, Price FROM Account')
+        self.assertEqual(
+            result,
+            OrderedDict([
+                ('records', [
+                    OrderedDict([('ID', '1'), ('Price', 13.4)]),
+                    OrderedDict([
+                        ('ID', '2'), ('Price', 1.12345678901234567)
+                    ]),
+                    OrderedDict([
+                        ('ID', '3'), ('Price', 123456789012345678)
+                    ]),
+                    OrderedDict([('ID', '4'), ('Price', 0)]),
+                    OrderedDict([
+                        ('ID', '5'), ('Price', -1.1234567890123456),
+                    ]),
+                    OrderedDict([
+                        ('ID', '6'), ('Price', -12345678901234567),
+                    ]),
+                ]),
+                ('done', False),
+                ('nextRecordsUrl', "https://example.com/query/next-records-id"),
+                ('totalSize', 6),
+            ]))
+
+    @responses.activate
+    def test_query_parse_decimals(self):
+        """Test parsing of floating point numbers as decimals"""
+        responses.add(
+            responses.GET,
+            re.compile(r'^https://.*/query/\?q=SELECT\+ID%2C\+Price\+'
+                       r'FROM\+Account$'),
+            body='{"records": [{"ID": "1", "Price": 13.40},'
+                              '{"ID": "2", "Price": 1.12345678901234567},'
+                              '{"ID": "3", "Price": 123456789012345678},'
+                              '{"ID": "4", "Price": 0},'
+                              '{"ID": "5", "Price": -1.1234567890123456},'
+                              '{"ID": "6", "Price": -12345678901234567}],'
+                 '"done": false, "nextRecordsUrl": '
+                 '"https://example.com/query/next-records-id", "totalSize": 6}',
+            status=http.OK)
+        session = requests.Session()
+        client = Salesforce(session_id=tests.SESSION_ID,
+                            instance_url=tests.SERVER_URL,
+                            session=session,
+                            parse_fixed_place=True)
+
+        result = client.query('SELECT ID, Price FROM Account')
+        self.assertEqual(
+            result,
+            OrderedDict([
+                ('records', [
+                    OrderedDict([
+                        ('ID', '1'),
+                        ('Price', decimal.Decimal('13.40')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '2'),
+                        ('Price', decimal.Decimal('1.12345678901234567')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '3'),
+                        ('Price', decimal.Decimal('123456789012345678')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '4'),
+                        ('Price', decimal.Decimal('0')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '5'),
+                        ('Price', decimal.Decimal('-1.1234567890123456')),
+                    ]),
+                    OrderedDict([
+                        ('ID', '6'),
+                        ('Price', decimal.Decimal('-12345678901234567')),
+                    ]),
+                ]),
+                ('done', False),
+                ("nextRecordsUrl", "https://example.com/query/next-records-id"),
+                ('totalSize', 6),
+            ]))
 
     @responses.activate
     def test_query_include_deleted(self):
